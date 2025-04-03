@@ -1,4 +1,13 @@
 # Tutorial from Traversy Media [Python Django 7 Hour Course](https://www.youtube.com/watch?v=PtQiiknWUcI)
+[View Live Demo of StudyBud](https://studybuddev.herokuapp.com/)
+
+## Table of Contents
+- [Get Started](#get-started)
+- [Database](#database)
+- [Admin Panel](#admin-panel)
+- [Model Form](#model-form)
+- [Filter Records](#filter-records)
+- [User Authentication and Authorization](#user-authentication-and-authorization)
 
 ## Get Started
 ### Create Virtual environment using pipenv and install django in it
@@ -97,7 +106,10 @@ use {{ variable_name }} as used by django's template engine
 ```bash
 python manage.py migrate
 ```
+
+[Back to Top](#table-of-contents)
 ---
+
 ## Database
 + Python classes represent DB tables (inherits from django models)
 + Attributes of class represent columns in tables
@@ -148,6 +160,7 @@ queryset = ModelName.objects
 + One to Many - single user can have multiple posts
 + Many to One - single category like a topic can be assigned to multiple rooms.
 
+[Back to Top](#table-of-contents)
 ---
 
 ## Model Form
@@ -268,3 +281,143 @@ rooms = Room.objects.filter(
     Q(description__icontains=q)
 )
 ```
+
+[Back to Top](#table-of-contents)
+---
+
+## User Authentication and Authorization
+Django comes with inbuilt features for User accounts, groups, permissions and cookie-based user sessions. Find [the official docs here](https://docs.djangoproject.com/en/5.1/topics/auth/)
+
+### User objects
+User objects are the core of the authentication system. They typically represent the people interacting with your site and are used to enable things like restricting access, registering user profiles, associating content with creators etc.
+The primary attributes of the default user are:
++ username
++ password
++ email
++ first_name
++ last_name
+See the full [API docs](https://docs.djangoproject.com/en/5.1/ref/contrib/auth/#django.contrib.auth.models.User)
+
+### Create functions in views for rendering register page, and performing register function
++ For registration, use the UserCreation form imported from django.contrib.auth.forms
+```python
+from django.contrib.auth.forms import UserCreationForm
+```
++ render this form in html simply by passing it in the context and rendering as a form template inside a form
+```html
+<form method="POST" action="">
+    {% csrf_token %}
+
+    {{form.as_p}}
+
+    <input type="submit" value="Register" />
+</form>
+```
++ The function for registration will be called on the same path as a POST request
+```python
+def registerPage(request):
+    form = UserCreationForm()
+    
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save(commit=False)
+            user.username = user.username.lower()
+            user.save()
+            login(request, user)
+            return redirect('home')
+        else:
+            messages.error(request, 'An error occoured during registration.')
+        
+    return render(request, 'base/login_register.html', {'form': form})
+```
++ Normally, calling form.save() saves the form's data directly to the database.
++ commit=False: This argument prevents Django from immediately saving the instance to the database.
++ This allows us to modify fields before saving and add additional logic or fields that aren't directly provided by the form.
++ Finally add the path for register view in the urls.py file
+```python
+path('register/', views.registerPage, name='register'),
+```
+
+### Create functions in views for rendering login page and performing login
++ The login function first checks if the user is not already authenticated using the is_authenticated attribute of the user object
++ Similar to the register function, it will render the login html if the request type is not POST method
+```html
+<div>
+    <form method="POST" action="">
+        {% csrf_token %}
+
+        <label>Username:</label>
+        <input type="text" name="username" placeholder="Enter Username" />
+        
+        <label>Password:</label>
+        <input type="password" name="password" placeholder="Enter password" />
+
+
+        <input type="submit" value="Login" />
+    </form>
+
+    <p>Haven't signed up yet?</p>
+    <a href="{% url 'register' %}">Sign up</a>
+</div>
+```
++ If the request method is POST, it should run the login function
++ Get the username and passoword from the request
+```python
+username = request.POST.get('username')
+password = request.POST.get('password')
+```
++ Inside a try catch block check if the user exists or not
+```python
+try:
+    user = User.objects.get(username=username)
+except:
+    messages.error(request, 'User does not exist')
+```
++ import the authenticate, login, and logout methods
+```python
+from django.contrib.auth import authenticate, login, logout
+```
++ If the user exists, verify them using the authenticate method.
+```python
+user = authenticate(request, username=username, password=password)
+if user is not None:
+    login(request, user)
+    return redirect('home')
+else:
+    messages.error(request, 'Invalid Username or Password')
+```
+
+### Protected Routes/Views
++ To protect views i.e. prevent user access before logging in
+```python
+from django.contrib.auth.decorators import login_required
+```
++ Add above views that need to be protected. Pass parameter login_url so they will be redirected to login.
+```python
+@login_required(login_url='login')
+```
+
+### Logout method
+Add view, path in url and html link with href to logout url
+```html
+<a href="{% url 'logout' %}">Logout</a>
+``` 
+```python
+def logoutUser(request):
+    logout(request)
+    return redirect('home')
+```
+
+### Authorization
++ Preventing users for unauthorized access can be done by rendering the html conditionally by checking if user has permission to perform some function.
++ And also by adding conditions in view functions that check if user is authenticated and/or authorized to perform some function.
++ If user does not have permissions, send a http response like in this example
+```python
+if request.user != room.host:
+    return HttpResponse('You are not allowed to update this one!')
+```
+
+[Back to Top](#table-of-contents)
+---
+
