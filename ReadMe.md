@@ -6,8 +6,8 @@
 - [Database](#database)
 - [Admin Panel](#admin-panel)
 - [Model Form](#model-form)
-- [Filter Records](#filter-records)
 - [User Authentication and Authorization](#user-authentication-and-authorization)
+- [Templates](#templates)
 
 ## Get Started
 ### Create Virtual environment using pipenv and install django in it
@@ -129,6 +129,104 @@ To add tables of new models in the database
 ```bash
 python manage.py migrate
 ```
+
+### Add queries in views (logic)
+queryset = ModelName.objects
++ .all() - to get all records
++ .get() - get only one specific record based on some attribute
++ .filter() - to filter based on some attribute
++ .exclude()
+
+### Create models with Relations to other models using primary keys and foreign keys
++ primary key is the id of a record in its own table
++ using this id to reference the record in another table will require it to be passed as a foriegn key
++ One to Many - single user can have multiple posts. 
++ Many to One - single category like a topic can be assigned to multiple rooms. The many side of the relationship should have the foreign key.
+```python
+class Manufacturer(models.Model):
+    name = models.TextField()
+
+class Car(models.Model):
+    manufacturer = models.ForeignKey(Manufacturer, on_delete=models.CASCADE)
+```
++ Many to Many - students can have multiple courses and courses can have multiple students. 
++ Django's ORM automatically creates an intermediate table when you use the ManyToManyField
+```python
+class Student(models.Model):
+    name = models.CharField(max_length=100)
+    courses = models.ManyToManyField('Course')  # Django creates a junction table automatically
+
+class Course(models.Model):
+    title = models.CharField(max_length=100)
+```
++ If you need extra fields, define an explicit model and pass it to the ManyToManyField as a parameter as value for 'through'
+```python
+class Enrollment(models.Model):  # Explicit junction table
+    student = models.ForeignKey('Student', on_delete=models.CASCADE)
+    course = models.ForeignKey('Course', on_delete=models.CASCADE)
+    enrollment_date = models.DateField()
+
+class Student(models.Model):
+    name = models.CharField(max_length=100)
+    courses = models.ManyToManyField('Course', through='Enrollment')  # Custom junction table
+```
++ [See docs for reference](https://docs.djangoproject.com/en/5.1/ref/models/fields/#django.db.models.ManyToManyField.related_name)
+
+### Filter records
+Filter reconds using search bar or using keywords/tags
+
+### Add a search bar using html form and input
++ add action to the form to call given url where search results are to be displayed (home).
++ the input name parameter will add query parameters to the url path of the action parameter of the form 
+```html
+<form method="GET" action="{% url 'home' %}">
+    <input type="text" name="q" placeholder="Search Rooms ..." />
+</form>
+```
+
+### Add filter method on records when they are fetched in the view function
++ import Q from django.db.models for writing queries
++ topic__name__contains will search topic.name field in Rooms records
++ icontains is for case insensitive
++ And(&) and Or(|) can be used with queries 
+```python
+rooms = Room.objects.filter(
+    Q(topic__name__icontains=q) | 
+    Q(name__icontains=q) | 
+    Q(description__icontains=q)
+)
+```
+
+### Query on child objects of a parent model
++ A parent model is related to a child model by one to many relation. Eg. A room can have multiple messages.
+```python
+class Room(models.Model):
+    ...
+
+class Message(models.Model):
+    room = models.ForeignKey(Room)
+```
++ Run query on the child model by using the lowercase name for the child model suffixed by _set to get the reference of the set of child model and then add the query to that set.
++ TODO: Add relevant model attributes for room and message 
+
+```python
+messages = room.messege_set.all()
+```
+
+### Keep objects in model sorted in a certain order or sort them while querying as an [Aggregation operation](https://docs.djangoproject.com/en/5.1/topics/db/aggregation/#:~:text=order_by%28%29).
+```python
+class Meta:
+    ordering = ['-updated', '-created'] # reverse ordering - so latest if first.
+```
+```python
+messages = Message.objects.all().order_by('-created')
+```
+
+### Render datetime as time since that date time
+```html
+{{message.created|timesince}}
+```
+
 ---
 ## Admin panel
 + Access admin panel on the /admin path
@@ -146,19 +244,6 @@ python manage.py createsuperuser
 from .models import Room
 admin.site.register(Room)
 ```
-
-### Add queries in views (logic)
-queryset = ModelName.objects
-+ .all() - to get all records
-+ .get() - get only one specific record based on some attribute
-+ .filter() - to filter based on some attribute
-+ .exclude()
-
-### Create models with Relations to other models using primary keys and foreign keys
-+ primary key is the id of a record in its own table
-+ using this id to reference the record in another table will require it to be passed as a foriegn key
-+ One to Many - single user can have multiple posts
-+ Many to One - single category like a topic can be assigned to multiple rooms.
 
 [Back to Top](#table-of-contents)
 ---
@@ -255,31 +340,6 @@ def updateRoom(request, pk):
 ```html
 <a href="{% url 'update-room' room.id %}">Edit</a>
 <a href="{% url 'delete-room' room.id %}">Delete</a>
-```
-
-## Filter records
-Filter reconds using search bar or using keywords/tags
-
-### Add a search bar using html form and input
-+ add action to the form to call given url where search results are to be displayed (home).
-+ the input name parameter will add query parameters to the url path of the action parameter of the form 
-```html
-<form method="GET" action="{% url 'home' %}">
-    <input type="text" name="q" placeholder="Search Rooms ..." />
-</form>
-```
-
-### Add filter method on records when they are fetched in the view function
-+ import Q from django.db.models for writing queries
-+ topic__name__contains will search topic.name field in Rooms records
-+ icontains is for case insensitive
-+ And(&) and Or(|) can be used with queries 
-```python
-rooms = Room.objects.filter(
-    Q(topic__name__icontains=q) | 
-    Q(name__icontains=q) | 
-    Q(description__icontains=q)
-)
 ```
 
 [Back to Top](#table-of-contents)
@@ -421,3 +481,14 @@ if request.user != room.host:
 [Back to Top](#table-of-contents)
 ---
 
+## Templates
+A template contains the static parts of the desired HTML output as well as some special syntax describing how dynamic content will be inserted.
+[See Docs for reference](https://docs.djangoproject.com/en/5.1/topics/templates/)
+
+### Using templates with variables to get dynamic data.
++ When re-using templates in different html pages, ensure variable names in the html pages are matching with what is required in template.
++ For example, activity feed template is used in home and user profile page. 
++ In home it shows all activity, but in user profile it only show's that users activity. 
++ This works because all_messages passed to home has all users' messages, but in user profile it is filtered to contain only that user's messages.
+
+## Static Files
