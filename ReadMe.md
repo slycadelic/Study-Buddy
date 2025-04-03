@@ -490,5 +490,27 @@ A template contains the static parts of the desired HTML output as well as some 
 + For example, activity feed template is used in home and user profile page. 
 + In home it shows all activity, but in user profile it only show's that users activity. 
 + This works because all_messages passed to home has all users' messages, but in user profile it is filtered to contain only that user's messages.
+TODO: Add explanation for custom templates folder adding in settings.py
 
 ## Static Files
++ Add static files like css, images etc. by creating a folder called static in project root.
++ Add config in settings.py for STATICFILES_DIR to allow it to use the folder we created.
+```python
+STATICFILES_DIRS = [
+    BASE_DIR / 'static'
+]
+```
++ Create a main.css file in static/styles folder and add css there
++ Allow main.html to use the static tag by adding the load static expression at the top and add link tag in head with href pointing to the static folder.
+```html
+<!DOCTYPE html>
+{% load static %}
+<html>
+
+<head>
+    <meta charset="utf-8">
+    ...
+    <link rel="stylesheet" type="text/css" media="screen" href="{% static 'styles/main.css' %}">
+    <!-- <script src="main.js"></script> -->
+</head>
+```
